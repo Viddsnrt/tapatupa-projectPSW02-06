@@ -1,6 +1,8 @@
+// src/pages/PermohonanSewa/PermohonanSewaPage.jsx
+
 import React, { useEffect, useState, useCallback } from 'react';
 import apiClient from '../../services/apiClient';
-import CloseIcon from '@mui/icons-material/Close';
+import CloseIcon from '@mui/icons-material/Close'; // Bisa dihapus jika tidak ada tombol close spesifik
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import {
@@ -16,40 +18,33 @@ import {
   TableBody,
   IconButton,
   CircularProgress,
-  Alert,          // Untuk pesan error/sukses di dalam halaman
+  Alert,
   TextField,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Grid,
   Autocomplete,
   Chip,
   Tooltip,
   Menu,
   MenuItem,
-  ListItemIcon,   // Untuk ikon di dalam MenuItem
-  Skeleton,       // Untuk efek loading pada tabel
-  Snackbar,       // Untuk notifikasi pop-up
+  ListItemIcon,
+  Skeleton,
+  Snackbar,
   useTheme,
-  alpha
+  alpha,
+  Divider // Tambahkan Divider
 } from '@mui/material';
 
-// Impor Ikon dari @mui/icons-material
+// Impor Ikon
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
-// Pastikan ikon lain yang mungkin kamu tambahkan juga diimpor di sini
 
-// Impor dari date-fns
 import { format, parseISO, isValid } from 'date-fns';
-import { id as localeID } from 'date-fns/locale'; // Untuk format tanggal Indonesia
+import { id as localeID } from 'date-fns/locale';
 
-// Jika kamu menggunakan framer-motion (opsional untuk animasi)
-// import { motion } from 'framer-motion';
 const initialFormData = {
   idJenisPermohonan: '',
   nomorSuratPermohonan: '',
@@ -60,7 +55,6 @@ const initialFormData = {
   createBy: '',
 };
 
-// Fungsi untuk mendapatkan warna chip berdasarkan status
 const getStatusChipColor = (statusName) => {
   const name = statusName?.toLowerCase() || '';
   if (name.includes('disetujui') || name.includes('aktif')) return 'success';
@@ -74,10 +68,11 @@ const PermohonanSewaPage = () => {
   const theme = useTheme();
   const [dataList, setDataList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' }); // Snackbar lokal
+  const [pageError, setPageError] = useState(null); // Error untuk tampilan list
+  const [formError, setFormError] = useState(null); // Error untuk form
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
-  const [openForm, setOpenForm] = useState(false);
+  const [formMode, setFormMode] = useState('list'); // 'list', 'add', 'edit'
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState(initialFormData);
 
@@ -88,7 +83,6 @@ const PermohonanSewaPage = () => {
   const [userOptions, setUserOptions] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
-  // State untuk menu aksi di tabel
   const [anchorElMenu, setAnchorElMenu] = useState(null);
   const [selectedItemIdMenu, setSelectedItemIdMenu] = useState(null);
 
@@ -107,13 +101,13 @@ const PermohonanSewaPage = () => {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setPageError(null);
     try {
       const response = await apiClient.get('/permohonan-sewa');
       setDataList(response.data.data || []);
     } catch (err) {
-      setError('Gagal mengambil data Permohonan Sewa.');
-      showSnackbar('Gagal mengambil data Permohonan Sewa.', 'error');
+      setPageError('Gagal mengambil data Permohonan Sewa.');
+      // showSnackbar('Gagal mengambil data Permohonan Sewa.', 'error'); // Snackbar bisa di-trigger dari pageError
     } finally {
       setLoading(false);
     }
@@ -136,22 +130,26 @@ const PermohonanSewaPage = () => {
       setUserOptions(usrRes.data.data || []);
     } catch (err) {
       console.error("Error fetching dropdown options:", err);
-      setError("Gagal memuat beberapa opsi dropdown.");
-      showSnackbar("Gagal memuat opsi dropdown.", 'error');
+      setFormError("Gagal memuat beberapa opsi dropdown."); // Error spesifik untuk form
+      // showSnackbar("Gagal memuat opsi dropdown.", 'error');
     } finally {
       setLoadingOptions(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-    fetchDropdownData();
-  }, [fetchData, fetchDropdownData]);
+    if (formMode === 'list') {
+      fetchData();
+    }
+    if (formMode === 'add' || formMode === 'edit') {
+      fetchDropdownData();
+    }
+  }, [fetchData, fetchDropdownData, formMode]);
 
-  const handleOpenForm = (item = null) => {
-    handleCloseMenu(); // Tutup menu aksi jika terbuka
+  const handleSetFormMode = (mode, item = null) => {
+    handleCloseMenu();
     setEditingItem(item);
-    if (item) {
+    if (mode === 'edit' && item) {
       const parsedDate = item.tanggalPengajuan ? parseISO(item.tanggalPengajuan) : new Date();
       setFormData({
         idPermohonanSewa: item.idPermohonanSewa,
@@ -163,14 +161,14 @@ const PermohonanSewaPage = () => {
         idStatus: item.idStatus || '',
         createBy: item.createBy || '',
       });
-    } else {
+    } else if (mode === 'add') {
       setFormData(initialFormData);
     }
-    setError(null);
-    setOpenForm(true);
+    setFormError(null); // Reset form error saat ganti mode
+    setPageError(null); // Reset page error juga
+    setFormMode(mode);
   };
 
-  const handleCloseForm = () => setOpenForm(false);
   const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
   const handleAutocompleteChange = (name, newValue) => {
@@ -188,33 +186,40 @@ const PermohonanSewaPage = () => {
   const handleSubmit = async () => {
     if (!formData.idJenisPermohonan || !formData.nomorSuratPermohonan || !formData.tanggalPengajuan ||
         !formData.idWajibRetribusi || !formData.idPeruntukanSewa || !formData.idStatus) {
-        showSnackbar("Semua field bertanda (*) wajib diisi.", "warning");
+        setFormError("Semua field bertanda (*) wajib diisi.");
         return;
     }
-    const submitButton = document.getElementById('submit-button-permohonan-sewa');
+    const submitButton = document.getElementById('submit-button-permohonan-sewa-page');
     if(submitButton) submitButton.disabled = true;
-    setError(null);
+    setFormError(null);
 
     try {
       const payload = { ...formData };
       if (payload.createBy === '') payload.createBy = null;
+      // Pastikan ID diubah ke integer jika backend memerlukannya, contoh:
+      payload.idJenisPermohonan = parseInt(payload.idJenisPermohonan, 10) || null;
+      payload.idWajibRetribusi = parseInt(payload.idWajibRetribusi, 10) || null;
+      payload.idPeruntukanSewa = parseInt(payload.idPeruntukanSewa, 10) || null;
+      payload.idStatus = parseInt(payload.idStatus, 10) || null;
+      if(payload.createBy) payload.createBy = parseInt(payload.createBy, 10);
 
-      if (editingItem && formData.idPermohonanSewa) {
+
+      if (formMode === 'edit' && editingItem && formData.idPermohonanSewa) {
         await apiClient.put(`/permohonan-sewa/${formData.idPermohonanSewa}`, payload);
         showSnackbar('Permohonan berhasil diperbarui!', 'success');
       } else {
-        const { idPermohonanSewa, ...createData } = payload; // Hapus idPermohonanSewa saat create
+        const { idPermohonanSewa, ...createData } = payload;
         await apiClient.post('/permohonan-sewa', createData);
         showSnackbar('Permohonan baru berhasil diajukan!', 'success');
       }
-      fetchData();
-      handleCloseForm();
+      setFormMode('list'); // Kembali ke daftar setelah sukses
+      fetchData(); // Muat ulang data
     } catch (err) {
       console.error("Error saat menyimpan Permohonan Sewa:", err);
-      const errorMessage = err.response?.data?.message || err.response?.data?.errors ? 
+      const errorMessage = err.response?.data?.message || (err.response?.data?.errors ? 
                            (Object.values(err.response.data.errors || {}).flat().join('\n') || err.response.data.message) :
-                           'Gagal menyimpan data. Periksa koneksi.';
-      showSnackbar(`Gagal menyimpan: ${errorMessage}`, 'error');
+                           'Gagal menyimpan data. Periksa koneksi.');
+      setFormError(`Gagal menyimpan: ${errorMessage}`);
     } finally {
       if(submitButton) submitButton.disabled = false;
     }
@@ -228,13 +233,14 @@ const PermohonanSewaPage = () => {
   };
 
   const handleDelete = async (id) => {
-    setError(null);
+    setPageError(null);
     try {
       await apiClient.delete(`/permohonan-sewa/${id}`);
       fetchData();
       showSnackbar('Permohonan berhasil dihapus.', 'success');
     } catch (err) { 
       showSnackbar('Gagal menghapus data.', 'error');
+      setPageError('Gagal menghapus data.'); // Set page error juga
     }
   };
   
@@ -251,7 +257,6 @@ const PermohonanSewaPage = () => {
     "ID", "No. Surat", "Tgl. Pengajuan", "Jenis", "Pemohon", "Peruntukan", "Status", "Aksi"
   ];
 
-  // Skeleton untuk tabel
   const TableSkeleton = () => (
     Array.from(new Array(5)).map((_, index) => (
       <TableRow key={index}>
@@ -262,7 +267,106 @@ const PermohonanSewaPage = () => {
     ))
   );
 
+  // --- BAGIAN RENDER ---
+  if (formMode === 'add' || formMode === 'edit') {
+    return (
+      <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
+        <Paper sx={{ 
+            p: { xs: 2, md: 3 }, 
+            borderRadius: '12px',
+            boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.05)}`,
+        }}>
+            <Box sx={{ 
+                backgroundColor: theme.palette.success.main,
+                color: theme.palette.common.white,
+                p: 1.5,
+                mb: 3,
+                borderRadius: '8px 8px 0 0',
+                mx: { xs: -2, md: -3 }, 
+                mt: { xs: -2, md: -3 },
+            }}>
+                <Typography variant="h6" component="h1" sx={{ fontWeight: 'medium' }}>
+                    {formMode === 'edit' ? 'Edit Detail' : 'Formulir'} Permohonan Sewa
+                </Typography>
+            </Box>
 
+            {formError && <Alert severity="error" sx={{ mb: 2.5, borderRadius: '4px' }} onClose={() => setFormError(null)}>{formError}</Alert>}
+            
+            <Grid container spacing={2.5}>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
+                  Nomor Surat Permohonan *
+                </Typography>
+                <TextField autoFocus name="nomorSuratPermohonan" fullWidth value={formData.nomorSuratPermohonan} onChange={handleChange} required variant="outlined" size="small" placeholder="Masukkan nomor surat" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }} />
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
+                  Tanggal Pengajuan *
+                </Typography>
+                <TextField name="tanggalPengajuan" type="date" fullWidth InputLabelProps={{ shrink: true }} value={formData.tanggalPengajuan} onChange={handleChange} required variant="outlined" size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }} />
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
+                  Jenis Permohonan *
+                </Typography>
+                <Autocomplete options={jenisPermohonanOptions} getOptionLabel={(o) => o.jenisPermohonan || ''} value={jenisPermohonanOptions.find(o => o.idJenisPermohonan === formData.idJenisPermohonan) || null} onChange={(_, newVal) => handleAutocompleteChange('idJenisPermohonan', newVal)} isOptionEqualToValue={(opt, val) => opt.idJenisPermohonan === val.idJenisPermohonan} renderInput={(params) => <TextField {...params} required variant="outlined" size="small" placeholder="-- Pilih Jenis Permohonan --" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }} />} loading={loadingOptions} fullWidth />
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
+                  Pemohon (Wajib Retribusi) *
+                </Typography>
+                <Autocomplete options={wajibRetribusiOptions} getOptionLabel={(o) => o.namaWajibRetribusi ? `${o.namaWajibRetribusi} (NIK: ${o.NIK || 'N/A'})` : ''} value={wajibRetribusiOptions.find(o => o.idWajibRetribusi === formData.idWajibRetribusi) || null} onChange={(_, newVal) => handleAutocompleteChange('idWajibRetribusi', newVal)} isOptionEqualToValue={(opt, val) => opt.idWajibRetribusi === val.idWajibRetribusi} renderInput={(params) => <TextField {...params} required variant="outlined" size="small" placeholder="-- Pilih Pemohon --" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }} />} loading={loadingOptions} fullWidth />
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
+                  Peruntukan Sewa (Objek & Kegiatan) *
+                </Typography>
+                <Autocomplete options={peruntukanSewaOptions} getOptionLabel={getPeruntukanLabel} value={peruntukanSewaOptions.find(o => o.idPeruntukanSewa === formData.idPeruntukanSewa) || null} onChange={(_, newVal) => handleAutocompleteChange('idPeruntukanSewa', newVal)} isOptionEqualToValue={(opt, val) => opt.idPeruntukanSewa === val.idPeruntukanSewa} renderInput={(params) => <TextField {...params} required variant="outlined" size="small" placeholder="-- Pilih Peruntukan --" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }} />} loading={loadingOptions} fullWidth />
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
+                  Status Permohonan Awal *
+                </Typography>
+                <Autocomplete options={statusOptions} getOptionLabel={(o) => o.namaStatus || ''} value={statusOptions.find(o => o.idStatus === formData.idStatus) || null} onChange={(_, newVal) => handleAutocompleteChange('idStatus', newVal)} isOptionEqualToValue={(opt, val) => opt.idStatus === val.idStatus} renderInput={(params) => <TextField {...params} required variant="outlined" size="small" placeholder="-- Pilih Status --" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }} />} loading={loadingOptions} fullWidth />
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
+                  Dibuat Oleh (Admin)
+                </Typography>
+                <Autocomplete options={userOptions} getOptionLabel={(o) => o.username || (o.name || `User ID: ${o.userId}`)} value={userOptions.find(o => o.userId === formData.createBy) || null} onChange={(_, newVal) => handleAutocompleteChange('createBy', newVal)} isOptionEqualToValue={(opt, val) => opt.userId === val.userId} renderInput={(params) => <TextField {...params} variant="outlined" size="small" placeholder="-- Pilih User Admin --" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }} />} loading={loadingOptions} fullWidth />
+                <Typography variant="caption" display="block" sx={{mt: 0.5, color: 'text.secondary'}}>
+                  Kosongkan field ini jika permohonan dibuat otomatis oleh sistem atau oleh pemohon sendiri.
+                </Typography>
+              </Grid>
+            </Grid>
+
+            <Divider sx={{ my: 3 }} />
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Button 
+                id="submit-button-permohonan-sewa-page" 
+                onClick={handleSubmit} 
+                variant="contained" 
+                sx={{ textTransform:'none', borderRadius: '4px', px: 2, backgroundColor: theme.palette.success.main, '&:hover': { backgroundColor: theme.palette.success.dark } }}
+                startIcon={<SaveIcon />}
+              >
+                Simpan Permohonan
+              </Button>
+              <Button 
+                onClick={() => setFormMode('list')}
+                variant="contained" 
+                sx={{ textTransform:'none', borderRadius: '4px', px: 2, backgroundColor: theme.palette.grey[600], '&:hover': { backgroundColor: theme.palette.grey[700] } }}
+                startIcon={<ArrowBackIcon />}
+              >
+                Kembali ke Daftar
+              </Button>
+            </Box>
+        </Paper>
+      </Box>
+    );
+  }
+
+  // --- TAMPILAN TABEL DATA (MODE 'list') ---
   return (
     <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
       <Paper sx={{ 
@@ -278,20 +382,19 @@ const PermohonanSewaPage = () => {
           <Button 
             variant="contained" 
             startIcon={<AddIcon />} 
-            onClick={() => handleOpenForm()}
+            onClick={() => handleSetFormMode('add')}
             sx={{ borderRadius: '8px', py: 1.2, px: 2.5, textTransform: 'none', fontWeight: 'medium' }}
           >
             Ajukan Permohonan
           </Button>
         </Box>
         <Box sx={{display: 'flex', gap: 1, mb: 2}}>
-            {/* Tambahkan filter/search di sini jika perlu */}
             <TextField size="small" placeholder="Cari permohonan..." InputProps={{startAdornment: <SearchIcon fontSize="small" sx={{mr:0.5, color:'text.disabled'}}/>}}/>
             <Button variant="outlined" startIcon={<FilterListIcon />} size="small" sx={{textTransform:'none'}}>Filter</Button>
         </Box>
       </Paper>
 
-      {error && !snackbar.open && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      {pageError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setPageError(null)}>{pageError}</Alert>}
       
       <Paper sx={{ borderRadius: '12px', overflow: 'hidden', boxShadow: `0 4px 12px ${alpha(theme.palette.common.black, 0.05)}`}}>
         <TableContainer>
@@ -320,18 +423,18 @@ const PermohonanSewaPage = () => {
                       {item.tanggalPengajuan && isValid(parseISO(item.tanggalPengajuan)) ? 
                         format(parseISO(item.tanggalPengajuan), 'dd MMM yyyy', { locale: localeID }) : '-'}
                     </TableCell>
-                    <TableCell>{item.jenis_permohonan?.jenisPermohonan || 'N/A'}</TableCell>
-                    <TableCell>{item.wajib_retribusi?.namaWajibRetribusi || 'N/A'}</TableCell>
+                    <TableCell>{item.jenis_permohonan?.jenisPermohonan || '-'}</TableCell>
+                    <TableCell>{item.wajib_retribusi?.namaWajibRetribusi || '-'}</TableCell>
                     <TableCell>
-                        <Tooltip title={item.peruntukan_sewa ? `${item.peruntukan_sewa.jenisKegiatan} (${item.peruntukan_sewa.objek_retribusi?.namaObjekRetribusi || 'Objek N/A'})` : 'N/A'}>
+                        <Tooltip title={item.peruntukan_sewa ? `${item.peruntukan_sewa.jenisKegiatan} (${item.peruntukan_sewa.objek_retribusi?.namaObjekRetribusi || 'Objek N/A'})` : '-'}>
                             <Typography variant="body2" sx={{maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
-                                {item.peruntukan_sewa?.jenisKegiatan || 'N/A'}
+                                {item.peruntukan_sewa?.jenisKegiatan || '-'}
                             </Typography>
                         </Tooltip>
                     </TableCell>
                     <TableCell>
                       <Chip 
-                        label={item.status?.namaStatus || 'N/A'} 
+                        label={item.status?.namaStatus || '-'} 
                         size="small"
                         color={getStatusChipColor(item.status?.namaStatus)}
                         sx={{ fontWeight: 'medium' }}
@@ -350,25 +453,15 @@ const PermohonanSewaPage = () => {
         </TableContainer>
       </Paper>
       
-      {/* Menu Aksi untuk setiap baris */}
       <Menu
         anchorEl={anchorElMenu}
         open={Boolean(anchorElMenu)}
         onClose={handleCloseMenu}
-        PaperProps={{
-          elevation: 1,
-          sx: {
-            overflow: 'visible',
-            filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.05))',
-            mt: 0.5,
-            '& .MuiAvatar-root': { width: 32, height: 32, ml: -0.5, mr: 1, },
-            '&:before': { content: '""', display: 'block', position: 'absolute', top: 0, right: 14, width: 10, height: 10, bgcolor: 'background.paper', transform: 'translateY(-50%) rotate(45deg)', zIndex: 0, }
-          },
-        }}
+        PaperProps={{ elevation: 1, sx: { overflow: 'visible', filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.05))', mt: 0.5, '& .MuiAvatar-root': { width: 32, height: 32, ml: -0.5, mr: 1, }, '&:before': { content: '""', display: 'block', position: 'absolute', top: 0, right: 14, width: 10, height: 10, bgcolor: 'background.paper', transform: 'translateY(-50%) rotate(45deg)', zIndex: 0, } }, }}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <MenuItem onClick={() => handleOpenForm(dataList.find(d => d.idPermohonanSewa === selectedItemIdMenu))}>
+        <MenuItem onClick={() => handleSetFormMode('edit', dataList.find(d => d.idPermohonanSewa === selectedItemIdMenu))}>
           <ListItemIcon><EditIcon fontSize="small" /></ListItemIcon>
           Edit Permohonan
         </MenuItem>
@@ -378,246 +471,6 @@ const PermohonanSewaPage = () => {
         </MenuItem>
       </Menu>
 
-
-      {/* Dialog Form */}
-        <Dialog 
-        open={openForm} 
-        onClose={handleCloseForm} 
-        maxWidth="sm" // Mungkin 'sm' lebih cocok untuk form vertikal
-        fullWidth 
-        PaperProps={{ 
-          sx: { 
-            borderRadius: '8px', 
-            boxShadow: theme.shadows[5], 
-          } 
-        }}
-      >
-        <DialogTitle sx={{ 
-          backgroundColor: theme.palette.success.main, // Warna hijau atau sesuaikan
-          color: theme.palette.common.white,
-          p: 1.5, 
-          fontSize: '1.1rem',
-          fontWeight: 'medium',
-          // Jika ingin tombol close di header dialog
-          // display: 'flex', 
-          // alignItems: 'center',
-          // justifyContent: 'space-between'
-        }}>
-          {editingItem ? 'Edit Detail' : 'Formulir'} Permohonan Sewa
-          {/* 
-          <IconButton
-            aria-label="close"
-            onClick={handleCloseForm}
-            sx={{ color: 'common.white' }}
-          >
-            <CloseIcon />
-          </IconButton> 
-          */}
-        </DialogTitle>
-
-        {/* KONTEN DIALOG YANG DIREVISI UNTUK SUSUNAN VERTIKAL */}
-        <DialogContent sx={{ 
-            pt: 2.5, 
-            pb: 2,
-            px: {xs: 2, sm: 3},
-        }}>
-            {error && <Alert severity="error" sx={{ mb: 2, borderRadius: '4px' }} onClose={() => setError(null)}>{error}</Alert>}
-            
-            <Grid container spacing={2.5}> {/* Spasi vertikal antar field */}
-              
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
-                  Nomor Surat Permohonan *
-                </Typography>
-                <TextField 
-                    name="nomorSuratPermohonan" 
-                    fullWidth 
-                    value={formData.nomorSuratPermohonan} 
-                    onChange={handleChange} 
-                    required 
-                    variant="outlined"
-                    size="small"
-                    placeholder="Masukkan nomor surat"
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }}
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
-                  Tanggal Pengajuan *
-                </Typography>
-                <TextField 
-                    name="tanggalPengajuan" 
-                    type="date" 
-                    fullWidth 
-                    InputLabelProps={{ shrink: true }}
-                    value={formData.tanggalPengajuan} 
-                    onChange={handleChange} 
-                    required 
-                    variant="outlined"
-                    size="small"
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }}
-                />
-              </Grid>
-              
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
-                  Jenis Permohonan *
-                </Typography>
-                <Autocomplete 
-                    options={jenisPermohonanOptions} 
-                    getOptionLabel={(o) => o.jenisPermohonan || ''}
-                    value={jenisPermohonanOptions.find(o => o.idJenisPermohonan === formData.idJenisPermohonan) || null}
-                    onChange={(_, newVal) => handleAutocompleteChange('idJenisPermohonan', newVal)}
-                    isOptionEqualToValue={(opt, val) => opt.idJenisPermohonan === val.idJenisPermohonan}
-                    renderInput={(params) => 
-                        <TextField {...params} 
-                            required 
-                            variant="outlined" 
-                            size="small"
-                            placeholder="-- Pilih Jenis Permohonan --"
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }}
-                        />} 
-                    loading={loadingOptions} 
-                    fullWidth 
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
-                  Pemohon (Wajib Retribusi) *
-                </Typography>
-                <Autocomplete 
-                    options={wajibRetribusiOptions} 
-                    getOptionLabel={(o) => o.namaWajibRetribusi ? `${o.namaWajibRetribusi} (NIK: ${o.NIK || 'N/A'})` : ''}
-                    value={wajibRetribusiOptions.find(o => o.idWajibRetribusi === formData.idWajibRetribusi) || null}
-                    onChange={(_, newVal) => handleAutocompleteChange('idWajibRetribusi', newVal)}
-                    isOptionEqualToValue={(opt, val) => opt.idWajibRetribusi === val.idWajibRetribusi}
-                    renderInput={(params) => 
-                        <TextField {...params} 
-                            required 
-                            variant="outlined" 
-                            size="small"
-                            placeholder="-- Pilih Pemohon --"
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }}
-                        />} 
-                    loading={loadingOptions} 
-                    fullWidth 
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
-                  Peruntukan Sewa (Objek & Kegiatan) *
-                </Typography>
-                <Autocomplete 
-                    options={peruntukanSewaOptions} 
-                    getOptionLabel={getPeruntukanLabel}
-                    value={peruntukanSewaOptions.find(o => o.idPeruntukanSewa === formData.idPeruntukanSewa) || null}
-                    onChange={(_, newVal) => handleAutocompleteChange('idPeruntukanSewa', newVal)}
-                    isOptionEqualToValue={(opt, val) => opt.idPeruntukanSewa === val.idPeruntukanSewa}
-                    renderInput={(params) => 
-                        <TextField {...params} 
-                            required 
-                            variant="outlined" 
-                            size="small"
-                            placeholder="-- Pilih Peruntukan --"
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }}
-                        />} 
-                    loading={loadingOptions} 
-                    fullWidth 
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
-                  Status Permohonan Awal *
-                </Typography>
-                <Autocomplete 
-                    options={statusOptions} 
-                    getOptionLabel={(o) => o.namaStatus || ''}
-                    value={statusOptions.find(o => o.idStatus === formData.idStatus) || null}
-                    onChange={(_, newVal) => handleAutocompleteChange('idStatus', newVal)}
-                    isOptionEqualToValue={(opt, val) => opt.idStatus === val.idStatus}
-                    renderInput={(params) => 
-                        <TextField {...params} 
-                            required 
-                            variant="outlined" 
-                            size="small"
-                            placeholder="-- Pilih Status --"
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }}
-                        />} 
-                    loading={loadingOptions} 
-                    fullWidth 
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" gutterBottom sx={{fontWeight: 'bold', color: 'text.primary', mb: 0.5}}>
-                  Dibuat Oleh (Admin)
-                </Typography>
-                <Autocomplete 
-                    options={userOptions} 
-                    getOptionLabel={(o) => o.username || (o.name || '')}
-                    value={userOptions.find(o => o.userId === formData.createBy) || null}
-                    onChange={(_, newVal) => handleAutocompleteChange('createBy', newVal)}
-                    isOptionEqualToValue={(opt, val) => opt.userId === val.userId}
-                    renderInput={(params) => 
-                        <TextField {...params} 
-                            variant="outlined" 
-                            size="small"
-                            placeholder="-- Pilih User Admin --"
-                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '4px' } }}
-                        />} 
-                    loading={loadingOptions} 
-                    fullWidth 
-                />
-                <Typography variant="caption" display="block" sx={{mt: 0.5, color: 'text.secondary'}}>
-                  Kosongkan field ini jika permohonan dibuat otomatis oleh sistem atau oleh pemohon sendiri.
-                </Typography>
-              </Grid>
-          </Grid>
-        </DialogContent>
-
-        <DialogActions sx={{ 
-          p: '16px 24px',
-          borderTop: `1px solid ${theme.palette.divider}`,
-          justifyContent: 'space-between',
-        }}>
-          <Button 
-            id="submit-button-permohonan-sewa" 
-            onClick={handleSubmit} 
-            variant="contained" 
-            sx={{
-                textTransform:'none', 
-                borderRadius: '4px', 
-                px: 2, 
-                backgroundColor: theme.palette.success.main, 
-                '&:hover': { backgroundColor: theme.palette.success.dark }
-            }}
-            startIcon={<SaveIcon />}
-          >
-            Simpan Permohonan
-          </Button>
-          <Button 
-            onClick={handleCloseForm} 
-            variant="contained" 
-            sx={{
-                textTransform:'none', 
-                borderRadius: '4px', 
-                px: 2,
-                backgroundColor: theme.palette.grey[600],
-                '&:hover': { backgroundColor: theme.palette.grey[700] }
-            }}
-            startIcon={<ArrowBackIcon />}
-          >
-            Kembali
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Snackbar untuk notifikasi */}
-      {/* Jika sudah ada Snackbar global di AdminLayout, ini bisa di-skip */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={5000}

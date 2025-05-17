@@ -1,5 +1,8 @@
+// src/App.jsx
+
 import React from 'react';
 import { AppRoutes } from './routes'; // Pastikan path ke file routes/index.jsx benar
+import { DashboardProvider } from './contexts/DashboardContext'; // <-- 1. IMPORT PROVIDER
 
 // Import MUI ThemeProvider jika ingin kustomisasi tema global
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
@@ -23,7 +26,9 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline /> {/* Normalisasi CSS dasar dari MUI */}
-      <AppRoutes />
+      <DashboardProvider> {/* <-- 2. BUNGKUS AppRoutes DENGAN PROVIDER */}
+        <AppRoutes />
+      </DashboardProvider>
     </ThemeProvider>
   );
 }
